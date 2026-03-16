@@ -10,29 +10,41 @@ export default function BlueprintPage() {
   const [tech, setTech] = useState('stomp')
   const [author, setAuthor] = useState('robinson')
   const [name, setName] = useState('estrella')
+  const [points, setPoints] = useState([])
 
   const canvasRef = useRef(null)
-
   const stompRef = useRef(null)
   const unsubRef = useRef(null)
 
+  // cargar blueprint
   useEffect(() => {
 
     api.get(`/blueprints/${author}/${name}`)
-      .then(res => drawAll(res.data.data))
+      .then(res => {
+        const bp = res.data.data
+        setPoints(bp.points || [])
+      })
+      .catch(() => setPoints([]))
 
   }, [author, name])
 
-  function drawAll(bp) {
+  // redibujar
+  useEffect(() => {
+    drawAll(points)
+  }, [points])
+
+  function drawAll(points) {
 
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
 
     ctx.clearRect(0, 0, 600, 400)
 
+    if (points.length === 0) return
+
     ctx.beginPath()
 
-    bp.points.forEach((p, i) => {
+    points.forEach((p, i) => {
 
       if (i === 0) ctx.moveTo(p.x, p.y)
       else ctx.lineTo(p.x, p.y)
@@ -42,9 +54,9 @@ export default function BlueprintPage() {
     ctx.strokeStyle = "#00eaff"
     ctx.lineWidth = 2
     ctx.stroke()
-
   }
 
+  // STOMP
   useEffect(() => {
 
     unsubRef.current?.()
@@ -53,21 +65,38 @@ export default function BlueprintPage() {
     if (tech === 'stomp') {
 
       const client = createStompClient(STOMP_BASE)
-
       stompRef.current = client
 
       client.onConnect = () => {
 
         unsubRef.current = subscribeBlueprint(client, author, name, (upd) => {
 
-          drawAll({ points: upd.points })
+          const lastPoint = upd.points[upd.points.length - 1]
+
+          setPoints(prev => {
+
+            if (!lastPoint) return prev
+
+            const exists = prev.some(
+              p => p.x === lastPoint.x && p.y === lastPoint.y
+            )
+
+            if (exists) return prev
+
+            return [...prev, lastPoint]
+
+          })
 
         })
 
       }
 
       client.activate()
+    }
 
+    return () => {
+      unsubRef.current?.()
+      stompRef.current?.deactivate?.()
     }
 
   }, [tech, author, name])
@@ -92,6 +121,8 @@ export default function BlueprintPage() {
       return
     }
 
+    setPoints(prev => [...prev, payload.point])
+
     if (stompRef.current?.connected) {
 
       stompRef.current.publish({
@@ -100,6 +131,36 @@ export default function BlueprintPage() {
       })
 
     }
+  }
+
+  // SAVE blueprint
+  async function saveBlueprint() {
+
+  try {
+
+    await api.put(`/blueprints/${author}/${name}`, {
+      points: points
+    })
+
+    alert("Blueprint guardado")
+
+  } catch (e) {
+    console.error(e)
+    alert("Error guardando blueprint")
+  }
+
+}
+
+  // DELETE último punto
+  function deleteLastPoint() {
+
+    setPoints(prev => {
+
+      if (prev.length === 0) return prev
+
+      return prev.slice(0, prev.length - 1)
+
+    })
 
   }
 
@@ -108,13 +169,10 @@ export default function BlueprintPage() {
     <div className="container">
 
       <header>
-
         <h1>ETI – Laboratorio de Blueprints en React</h1>
-
         <nav>
           <a href="/login">Login</a>
         </nav>
-
       </header>
 
       <h2>BluePrints RT – Socket.IO vs STOMP</h2>
@@ -153,10 +211,25 @@ export default function BlueprintPage() {
           onClick={onClick}
         />
 
+        <p style={{ marginTop: 10 }}>
+          Total puntos: {points.length}
+        </p>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
+
+          <button className="btn" onClick={saveBlueprint}>
+            SAVE
+          </button>
+
+          <button className="btn" onClick={deleteLastPoint}>
+            DELETE LAST POINT
+          </button>
+
+        </div>
+
       </div>
 
     </div>
 
   )
-
 }
