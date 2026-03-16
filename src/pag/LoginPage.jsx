@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../lib/apiClient'
 
 export default function LoginPage() {
+
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -14,51 +15,71 @@ export default function LoginPage() {
     setError(null)
 
     try {
+
       const { data } = await api.post('/auth/login', { username, password })
 
-      // guardar token
       localStorage.setItem('token', data.access_token)
 
       alert('Login exitoso')
 
-      // redirigir al home
-      navigate('/')
+      navigate('/blueprints')
 
     } catch (e) {
+
       setError('Credenciales inválidas o servidor no disponible')
+
     }
   }
 
   return (
-    <form className="card" onSubmit={submit}>
-      <h2 style={{ marginTop: 0 }}>Login</h2>
 
-      <div className="grid cols-2">
-        <div>
-          <label>Usuario</label>
-          <input
-            className="form-control input"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-        </div>
+    <div className="container">
 
-        <div>
-          <label>Contraseña</label>
-          <input
-            type="password"
-            className="form-control input"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
+      <header>
+        <h1>ETI – Laboratorio de Blueprints en React</h1>
+      </header>
+
+      <div className="card">
+
+        <h2 style={{ marginTop: 0 }}>Login</h2>
+
+        <form onSubmit={submit}>
+
+          <div className="grid cols-2">
+
+            <div>
+              <label>Usuario</label>
+              <input
+                className="form-control input"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label>Contraseña</label>
+              <input
+                type="password"
+                className="form-control input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+          </div>
+
+          {error && <p style={{ color: '#f87171' }}>{error}</p>}
+
+          <button className="btn" style={{ marginTop: 12, width: "100%" }}>
+            Ingresar
+          </button>
+
+        </form>
+
       </div>
 
-      {error && <p style={{ color: '#f87171' }}>{error}</p>}
+    </div>
 
-      <button className="btn primary" style={{ marginTop: 12 }}>
-        Ingresar
-      </button>
-    </form>
   )
+
 }

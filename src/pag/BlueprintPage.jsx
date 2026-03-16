@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { createStompClient, subscribeBlueprint } from '../lib/stompClient'
-import { createSocket } from '../lib/socketIoClient'
 import { drawPayloadSchema } from "../lib/drawPayload"
 import api from "../lib/apiClient"
 
@@ -8,129 +7,156 @@ const STOMP_BASE = import.meta.env.VITE_STOMP_BASE ?? 'http://localhost:8080'
 
 export default function BlueprintPage() {
 
-    const [tech, setTech] = useState('stomp')
-    const [author, setAuthor] = useState('robinson')
-    const [name, setName] = useState('estrella')
+  const [tech, setTech] = useState('stomp')
+  const [author, setAuthor] = useState('robinson')
+  const [name, setName] = useState('estrella')
 
-    const canvasRef = useRef(null)
+  const canvasRef = useRef(null)
 
-    const stompRef = useRef(null)
-    const unsubRef = useRef(null)
-    const socketRef = useRef(null)
+  const stompRef = useRef(null)
+  const unsubRef = useRef(null)
 
-    useEffect(() => {
+  useEffect(() => {
 
-        api.get(`/blueprints/${author}/${name}`)
-            .then(res => drawAll(res.data.data))
+    api.get(`/blueprints/${author}/${name}`)
+      .then(res => drawAll(res.data.data))
 
-    }, [author, name])
+  }, [author, name])
 
-    function drawAll(bp) {
+  function drawAll(bp) {
 
-        const ctx = canvasRef.current?.getContext('2d')
-        if (!ctx) return
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!ctx) return
 
-        ctx.clearRect(0, 0, 600, 400)
+    ctx.clearRect(0, 0, 600, 400)
 
-        ctx.beginPath()
+    ctx.beginPath()
 
-        bp.points.forEach((p, i) => {
+    bp.points.forEach((p, i) => {
 
-            if (i === 0) ctx.moveTo(p.x, p.y)
-            else ctx.lineTo(p.x, p.y)
+      if (i === 0) ctx.moveTo(p.x, p.y)
+      else ctx.lineTo(p.x, p.y)
+
+    })
+
+    ctx.strokeStyle = "#00eaff"
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+  }
+
+  useEffect(() => {
+
+    unsubRef.current?.()
+    stompRef.current?.deactivate?.()
+
+    if (tech === 'stomp') {
+
+      const client = createStompClient(STOMP_BASE)
+
+      stompRef.current = client
+
+      client.onConnect = () => {
+
+        unsubRef.current = subscribeBlueprint(client, author, name, (upd) => {
+
+          drawAll({ points: upd.points })
 
         })
 
-        ctx.stroke()
+      }
+
+      client.activate()
 
     }
 
-    useEffect(() => {
+  }, [tech, author, name])
 
-        unsubRef.current?.()
-        stompRef.current?.deactivate?.()
+  function onClick(e) {
 
-        if (tech === 'stomp') {
+    const rect = e.target.getBoundingClientRect()
 
-            const client = createStompClient(STOMP_BASE)
+    const payload = {
+      author,
+      name,
+      point: {
+        x: Math.round(e.clientX - rect.left),
+        y: Math.round(e.clientY - rect.top)
+      }
+    }
 
-            stompRef.current = client
+    const result = drawPayloadSchema.safeParse(payload)
 
-            client.onConnect = () => {
+    if (!result.success) {
+      console.error("Payload inválido", result.error)
+      return
+    }
 
-                unsubRef.current = subscribeBlueprint(client, author, name, (upd) => {
+    if (stompRef.current?.connected) {
 
-                    drawAll({ points: upd.points })
-
-                })
-
-            }
-
-            client.activate()
-
-        }
-
-    }, [tech, author, name])
-
-    function onClick(e) {
-
-        const rect = e.target.getBoundingClientRect()
-
-        const payload = {
-            author,
-            name,
-            point: {
-                x: Math.round(e.clientX - rect.left),
-                y: Math.round(e.clientY - rect.top)
-            }
-        }
-
-        const result = drawPayloadSchema.safeParse(payload)
-
-        if (!result.success) {
-            console.error("Payload inválido", result.error)
-            return
-        }
-
-        if (stompRef.current?.connected) {
-
-            stompRef.current.publish({
-                destination: '/app/draw',
-                body: JSON.stringify(payload)
-            })
-
-        }
+      stompRef.current.publish({
+        destination: '/app/draw',
+        body: JSON.stringify(payload)
+      })
 
     }
 
-    return (
+  }
 
-        <div style={{ padding: 16 }}>
+  return (
 
-            <h2>BluePrints RT – Socket.IO vs STOMP</h2>
+    <div className="container">
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+      <header>
 
-                <select value={tech} onChange={e => setTech(e.target.value)}>
-                    <option value="stomp">STOMP (Spring)</option>
-                    <option value="socketio">Socket.IO</option>
-                </select>
+        <h1>ETI – Laboratorio de Blueprints en React</h1>
 
-                <input value={author} onChange={e => setAuthor(e.target.value)} />
-                <input value={name} onChange={e => setName(e.target.value)} />
+        <nav>
+          <a href="/login">Login</a>
+        </nav>
 
-            </div>
+      </header>
 
-            <canvas
-                ref={canvasRef}
-                width={600}
-                height={400}
-                style={{ border: '1px solid #ddd' }}
-                onClick={onClick}
-            />
+      <h2>BluePrints RT – Socket.IO vs STOMP</h2>
 
-        </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
 
-    )
+        <select
+          className="input"
+          value={tech}
+          onChange={e => setTech(e.target.value)}
+        >
+          <option value="stomp">STOMP (Spring)</option>
+          <option value="socketio">Socket.IO</option>
+        </select>
+
+        <input
+          className="input"
+          value={author}
+          onChange={e => setAuthor(e.target.value)}
+        />
+
+        <input
+          className="input"
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+
+      </div>
+
+      <div className="card">
+
+        <canvas
+          ref={canvasRef}
+          width={600}
+          height={400}
+          onClick={onClick}
+        />
+
+      </div>
+
+    </div>
+
+  )
 
 }
