@@ -154,15 +154,31 @@ export default function BlueprintPage() {
   // DELETE último punto
   function deleteLastPoint() {
 
-    setPoints(prev => {
+  setPoints(prev => {
 
-      if (prev.length === 0) return prev
+    if (prev.length === 0) return prev
 
-      return prev.slice(0, prev.length - 1)
+    const newPoints = prev.slice(0, prev.length - 1)
 
-    })
+    // enviar actualización a los demás clientes
+    if (stompRef.current?.connected) {
 
-  }
+      stompRef.current.publish({
+        destination: '/app/draw',
+        body: JSON.stringify({
+          author,
+          name,
+          points: newPoints
+        })
+      })
+
+    }
+
+    return newPoints
+
+  })
+
+}
 
   return (
 
